@@ -1,0 +1,101 @@
+---
+title: "LAB 6 | Handling Imbalanced Data and Feature Engineering"
+output: html_document
+date: "2025-04-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+
+## Step 1: Setup
+```{r}
+# Install required packages (only run once)
+install.packages(c("ROSE", "recipes", "caret", "FactoMineR", "factoextra", "ggplot2"))
+
+# Load libraries
+library(ROSE)         # For oversampling
+library(recipes)      # For feature engineering
+library(caret)        # For model training
+library(FactoMineR)   # For PCA
+library(factoextra)   # For PCA visualization
+library(ggplot2)      # For general plotting
+```
+
+## Step 2: Load the Dataset
+```{r}
+# Load the dataset
+data <- read.csv("creditcard.csv")
+
+# Check class distribution
+table(data$Class)
+```
+
+## Step 3: Handle Imbalanced Data
+```{r}
+# Perform Random Oversampling
+set.seed(123)
+balanced_data <- ovun.sample(Class ~ ., data = data, method = "over")$data
+
+# Check the new class distribution
+table(balanced_data$Class)
+```
+
+## Step 4: Feature Engineering
+```{r}
+# Binning the 'Amount' feature
+data$Amount_Binned <- cut(data$Amount,
+                          breaks = c(0, 100, 500, 5000),
+                          labels = c("Low", "Medium", "High"))
+
+# Creating polynomial features for 'Time'
+recipe_obj <- recipe(Class ~ ., data = data) %>%
+  step_poly(Time, degree = 2)
+
+# Preparing the recipe
+prepped_data <- prep(recipe_obj, training = data) %>%
+  bake(new_data = data)
+
+# View first few rows
+head(prepped_data)
+```
+
+## Step 5: PCA (Principal Component Analysis)
+```{r}
+# Perform PCA (excluding the 'Class' column)
+pca_result <- PCA(prepped_data[, -which(names(prepped_data) == "Class")], graph = FALSE)
+
+# Visualize PCA
+fviz_pca_ind(pca_result, geom = "point", col.ind = prepped_data$Class)
+```
+
+## Step 6: Train Random Forest Model
+```{r}
+# Train a Random Forest Model
+set.seed(123)
+model <- train(Class ~ ., data = balanced_data, method = "rf",
+               trControl = trainControl(method = "cv", number = 5))
+
+# View the model details
+print(model)
+```
+
+## Step 7: Results Summary
+```{r}
+# Resampling Method Used
+"5-fold Cross Validation with Random Oversampling"
+
+# Engineered Features:
+"Added binned Amount feature and polynomial Time feature"
+
+# Balanced Class Distribution:
+table(balanced_data$Class)
+
+# Top 2 PCA components explained variance
+sum(pca_result$eig[1:2, 2])
+```
